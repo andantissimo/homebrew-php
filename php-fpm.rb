@@ -2,45 +2,10 @@ class PhpFpm < Formula
   desc "General-purpose scripting language"
   homepage "https://www.php.net/"
   # Should only be updated if the new version is announced on the homepage, https://www.php.net/
-  url "https://www.php.net/distributions/php-8.0.3.tar.xz"
-  mirror "https://fossies.org/linux/www/php-8.0.3.tar.xz"
-  sha256 "c9816aa9745a9695672951eaff3a35ca5eddcb9cacf87a4f04b9fb1169010251"
+  url "https://www.php.net/distributions/php-8.0.7.tar.xz"
+  mirror "https://fossies.org/linux/www/php-8.0.7.tar.xz"
+  sha256 "d5fc2e4fc780a32404d88c360e3e0009bc725d936459668e9c2ac992f2d83654"
   license "PHP-3.01"
-
-  resource "PEAR" do
-    url "http://download.pear.php.net/package/PEAR-1.10.12.tgz"
-    sha256 "df363c5e6091334c43f560eec2f220be2f8044eb5d422204a715adc4663ba923"
-  end
-
-  resource "Archive_Tar" do
-    url "http://download.pear.php.net/package/Archive_Tar-1.4.9.tgz"
-    sha256 "a91d4166a884962001b10f262d31a02a15a5d1fd9e3c41411bbb0492b669d270"
-  end
-
-  resource "Console_Getopt" do
-    url "http://download.pear.php.net/package/Console_Getopt-1.4.3.tgz"
-    sha256 "54bdfb7c2c958cbd7e1e8f1b964b95c3bfbf3b2779052523011b4ee49d7dfacd"
-  end
-
-  resource "Structures_Graph" do
-    url "http://download.pear.php.net/package/Structures_Graph-1.1.1.tgz"
-    sha256 "3b19abac379883f095c11fe2e5550cb61691b868f3d96573f6ed564be82fa08e"
-  end
-
-  resource "XML_Util" do
-    url "http://download.pear.php.net/package/XML_Util-1.4.5.tgz"
-    sha256 "e0f8736cb47ce9dd32814de45425ff03ad55a72ba8bb757e42c456f861feedf6"
-  end
-
-  resource "PHP_Archive" do
-    url "https://github.com/pear/PHP_Archive/archive/refs/tags/v0.14.0.tar.gz"
-    sha256 "ab6049e053e7474ca9bdb3540319a42cf50735cb55e181ff67b371f12114f306"
-  end
-
-  resource "pear-core" do
-    url "https://github.com/pear/pear-core/archive/refs/tags/v1.10.12.tar.gz"
-    sha256 "775e04b3897531852454638aa24c2a38627241c97884faf10ad9bf7ca9faf65a"
-  end
 
   option "with-ffi", "use ffi"
   option "with-gd", "use gd"
@@ -113,6 +78,7 @@ class PhpFpm < Formula
 
     # buildconf required due to system library linking bug patch
     system "./buildconf", "--force"
+
     inreplace "sapi/fpm/php-fpm.conf.in", ";daemonize = yes", "daemonize = no"
     inreplace "sapi/fpm/www.conf.in" do |s|
       s.gsub! /^user *=/, ";\\0"
@@ -236,40 +202,6 @@ class PhpFpm < Formula
     system "make"
     system "make", "install"
 
-    # Make install-pear-nozlib.phar instead of using broken one bundled in PHP 8.0.3
-    packages = %w(PEAR Archive_Tar Console_Getopt Structures_Graph XML_Util)
-    mkdir "pear/go-pear-tarballs" do
-      packages.each do |p|
-        r = resource(p)
-        tarball = Utils.safe_popen_read("gunzip", "-c", r.fetch)
-        File.write("#{File.basename(r.url, ".tgz")}.tar", tarball)
-      end
-      mkdir "src" do
-        packages.each do |p|
-          system "tar", "--strip-components=1", "-xf", resource(p).cached_download
-        end
-      end
-    end
-    system "tar", "-C", "pear", "--strip-components=1", "-xf", resource("pear-core").fetch
-    mkdir "pear/PHP" do
-      system "tar", "--strip-components=1", "-xf", resource("PHP_Archive").fetch
-      api_ver = /\$apiversion\s*=\s*'([^']+)'/.match(File.read("package.php"))[1]
-      inreplace "Archive.php" do |s|
-        s.gsub! "@API-VER@", api_ver
-        s.gsub! "private static final", "private static"
-      end
-      inreplace "Archive/Creator.php" do |s|
-        s.gsub! "@API-VER@", api_ver
-        s.gsub! "@data_dir@/PHP_Archive", buildpath/"pear/PHP"
-      end
-    end
-    mv "pear/install-pear-nozlib.phar", "pear/install-pear-nozlib.phar.broken"
-    system bin/"php",
-      "-d", "extension=tokenizer.so",
-      "-d", "extension=xml.so",
-      "-d", "include_path=pear:pear/go-pear-tarballs/src",
-      "-n", "pear/make-installpear-nozlib-phar.php"
-
     # Install pear
     system bin/"php",
       "-d", "extension=phar.so",
@@ -361,37 +293,6 @@ class PhpFpm < Formula
     php_api_ver = File.basename(extension_dir)
     php_ext_dir = opt_prefix/"lib/php"/php_api_ver
 
-    mkdir etc/"php/#{version.major_minor}/conf.d"
-    %w[
-      bcmath bz2
-      calendar ctype curl
-      dom
-      exif
-      ffi fileinfo ftp
-      gd gettext gmp
-      iconv intl
-      ldap
-      mbstring mysqli
-      odbc opcache
-      pdo pdo_mysql pdo_odbc pdo_pgsql pdo_sqlite pgsql phar pspell
-      shmop simplexml soap sockets sodium sqlite3 sysvmsg sysvsem sysvshm
-      tidy tokenizer
-      xml xmlreader xmlwriter
-      xsl zip
-    ].each do |e|
-      ext_config_path = etc/"php/#{version.major_minor}/conf.d/ext-#{e}.ini"
-      extension_type = (e == "opcache") ? "zend_extension" : "extension"
-      if ext_config_path.exist?
-        inreplace ext_config_path,
-          /#{extension_type}=.*$/, "#{extension_type}=#{php_ext_dir}/#{e}.so"
-      elsif (php_ext_dir/"#{e}.so").exist?
-        ext_config_path.write <<~EOS
-          [#{e}]
-          #{extension_type}="#{php_ext_dir}/#{e}.so"
-        EOS
-      end
-    end
-
     # fix pear config to install outside cellar
     pear_path = HOMEBREW_PREFIX/"share/pear"
     cp_r opt_share/"php/pear/.", pear_path
@@ -413,6 +314,37 @@ class PhpFpm < Formula
     end
 
     system bin/"pear", "update-channels"
+
+    mkdir etc/"php/#{version.major_minor}/conf.d"
+    %w[
+      bcmath bz2
+      calendar ctype curl
+      dom
+      exif
+      ffi fileinfo ftp
+      gd gettext gmp
+      iconv intl
+      ldap
+      mbstring mysqli
+      odbc opcache
+      pdo pdo_mysql pdo_odbc pdo_pgsql pdo_sqlite pgsql phar pspell
+      shmop simplexml soap sockets sodium sqlite3 sysvmsg sysvsem sysvshm
+      tidy tokenizer
+      xml xmlreader xmlwriter xsl
+      zip
+    ].each do |e|
+      ext_config_path = etc/"php/#{version.major_minor}/conf.d/ext-#{e}.ini"
+      extension_type = (e == "opcache") ? "zend_extension" : "extension"
+      if ext_config_path.exist?
+        inreplace ext_config_path,
+          /#{extension_type}=.*$/, "#{extension_type}=#{php_ext_dir}/#{e}.so"
+      elsif (php_ext_dir/"#{e}.so").exist?
+        ext_config_path.write <<~EOS
+          [#{e}]
+          #{extension_type}="#{php_ext_dir}/#{e}.so"
+        EOS
+      end
+    end
   end
 
   def caveats
