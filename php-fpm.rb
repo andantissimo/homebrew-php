@@ -2,9 +2,9 @@ class PhpFpm < Formula
   desc "General-purpose scripting language"
   homepage "https://www.php.net/"
   # Should only be updated if the new version is announced on the homepage, https://www.php.net/
-  url "https://www.php.net/distributions/php-8.0.7.tar.xz"
-  mirror "https://fossies.org/linux/www/php-8.0.7.tar.xz"
-  sha256 "d5fc2e4fc780a32404d88c360e3e0009bc725d936459668e9c2ac992f2d83654"
+  url "https://www.php.net/distributions/php-8.0.10.tar.xz"
+  mirror "https://fossies.org/linux/www/php-8.0.10.tar.xz"
+  sha256 "66dc4d1bc86d9c1bc255b51b79d337ed1a7a035cf71230daabbf9a4ca35795eb"
   license "PHP-3.01"
 
   option "with-ffi", "use ffi"
@@ -353,7 +353,7 @@ class PhpFpm < Formula
           LoadModule proxy_module libexec/apache2/mod_proxy.so
           LoadModule proxy_fcgi_module libexec/apache2/mod_proxy_fcgi.so
 
-          <FilesMatch \.php$>
+          <FilesMatch \\.php$>
               SetHandler "proxy:unix:/tmp/php-fpm.sock|fcgi://localhost"
           </FilesMatch>
 
