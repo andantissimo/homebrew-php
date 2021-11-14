@@ -2,9 +2,9 @@ class PhpFpm < Formula
   desc "General-purpose scripting language"
   homepage "https://www.php.net/"
   # Should only be updated if the new version is announced on the homepage, https://www.php.net/
-  url "https://www.php.net/distributions/php-8.0.10.tar.xz"
-  mirror "https://fossies.org/linux/www/php-8.0.10.tar.xz"
-  sha256 "66dc4d1bc86d9c1bc255b51b79d337ed1a7a035cf71230daabbf9a4ca35795eb"
+  url "https://www.php.net/distributions/php-8.0.12.tar.xz"
+  mirror "https://fossies.org/linux/www/php-8.0.12.tar.xz"
+  sha256 "a501017b3b0fd3023223ea25d98e87369b782f8a82310c4033d7ea6a989fea0a"
   license "PHP-3.01"
 
   option "with-ffi", "use ffi"
@@ -21,8 +21,8 @@ class PhpFpm < Formula
   option "with-zip", "use zip"
 
   livecheck do
-    url "https://www.php.net/releases/feed.php"
-    regex(/PHP (\d+(?:\.\d+)+) /i)
+    url "https://www.php.net/downloads"
+    regex(/href=.*?php[._-]v?(\d+(?:\.\d+)+)\.t/i)
   end
 
   head do
@@ -71,9 +71,9 @@ class PhpFpm < Formula
   end
 
   def install
-    on_macos do
+    if OS.mac? && (MacOS.version == :el_capitan || MacOS.version == :sierra)
       # Ensure that libxml2 will be detected correctly in older MacOS
-      ENV["SDKROOT"] = MacOS.sdk_path if MacOS.version == :el_capitan || MacOS.version == :sierra
+      ENV["SDKROOT"] = MacOS.sdk_path
     end
 
     # buildconf required due to system library linking bug patch
@@ -109,10 +109,7 @@ class PhpFpm < Formula
 
     # Each extension that is built on Mojave needs a direct reference to the
     # sdk path or it won't find the headers
-    headers_path = ""
-    on_macos do
-      headers_path = "#{MacOS.sdk_path_if_needed}/usr"
-    end
+    headers_path = "#{MacOS.sdk_path_if_needed}/usr" if OS.mac?
 
     args = %W[
       --prefix=#{prefix}
