@@ -2,9 +2,9 @@ class PhpFpm < Formula
   desc "General-purpose scripting language"
   homepage "https://www.php.net/"
   # Should only be updated if the new version is announced on the homepage, https://www.php.net/
-  url "https://www.php.net/distributions/php-8.0.12.tar.xz"
-  mirror "https://fossies.org/linux/www/php-8.0.12.tar.xz"
-  sha256 "a501017b3b0fd3023223ea25d98e87369b782f8a82310c4033d7ea6a989fea0a"
+  url "https://www.php.net/distributions/php-8.1.5.tar.xz"
+  mirror "https://fossies.org/linux/www/php-8.1.5.tar.xz"
+  sha256 "7647734b4dcecd56b7e4bd0bc55e54322fa3518299abcdc68eb557a7464a2e8a"
   license "PHP-3.01"
 
   option "with-ffi", "use ffi"
@@ -37,13 +37,11 @@ class PhpFpm < Formula
   depends_on "aspell" if build.with? "pspell"
   depends_on "autoconf"
   depends_on "curl"
-  depends_on "gd" if build.with? "gd"
+  depends_on "andantissimo/php/gd" if build.with? "gd"
   depends_on "gettext"
-  depends_on "glib"
   depends_on "gmp" if build.with? "gmp"
   depends_on "icu4c" if build.with? "intl"
   depends_on "krb5"
-  depends_on "libffi" if build.with? "ffi"
   depends_on "libpq" if build.with? "pgsql"
   depends_on "libsodium" if build.with? "sodium"
   depends_on "libzip" if build.with? "zip"
@@ -58,6 +56,7 @@ class PhpFpm < Formula
   uses_from_macos "xz" => :build
   uses_from_macos "bzip2"
   uses_from_macos "libedit"
+  uses_from_macos "libffi" if build.with? "ffi"
   uses_from_macos "libxml2"
   uses_from_macos "libxslt"
   uses_from_macos "zlib"
@@ -71,11 +70,6 @@ class PhpFpm < Formula
   end
 
   def install
-    if OS.mac? && (MacOS.version == :el_capitan || MacOS.version == :sierra)
-      # Ensure that libxml2 will be detected correctly in older MacOS
-      ENV["SDKROOT"] = MacOS.sdk_path
-    end
-
     # buildconf required due to system library linking bug patch
     system "./buildconf", "--force"
 
@@ -96,12 +90,11 @@ class PhpFpm < Formula
 
     # system pkg-config missing
     ENV["KERBEROS_CFLAGS"] = " "
-    on_macos do
+    if OS.mac?
       ENV["LIBS"] = "-lintl"
       ENV["SASL_CFLAGS"] = "-I#{MacOS.sdk_path_if_needed}/usr/include/sasl"
       ENV["SASL_LIBS"] = "-lsasl2"
-    end
-    on_linux do
+    else
       ENV["SQLITE_CFLAGS"] = "-I#{Formula["sqlite"].opt_include}"
       ENV["SQLITE_LIBS"] = "-lsqlite3"
       ENV["BZIP_DIR"] = Formula["bzip2"].opt_prefix
@@ -132,7 +125,6 @@ class PhpFpm < Formula
       --enable-phar=shared
       --enable-phpdbg
       --enable-phpdbg-readline
-      --enable-phpdbg-webhelper
       --enable-shmop=shared
       --enable-simplexml=shared
       --enable-soap=shared
@@ -154,11 +146,12 @@ class PhpFpm < Formula
       --with-kerberos
       --with-layout=GNU
       --with-libedit
-      --with-password-argon2=#{Formula["argon2"].opt_prefix}
+      --with-libxml
       --with-mhash=#{headers_path}
       --with-mysql-sock=/tmp/mysql.sock
       --with-mysqli=shared,mysqlnd
       --with-openssl
+      --with-password-argon2=#{Formula["argon2"].opt_prefix}
       --with-pdo-mysql=shared,mysqlnd
       --with-pdo-sqlite=shared
       --with-pic
@@ -184,14 +177,14 @@ class PhpFpm < Formula
     args << "--with-unixODBC=shared,#{Formula["unixodbc"].opt_prefix}" if build.with? "odbc"
     args << "--with-zip=shared" if build.with? "zip"
 
-    on_macos do
+    if OS.mac?
       args << "--enable-dtrace"
       args << "--with-ldap-sasl" if build.with? "ldap"
       args << "--with-os-sdkpath=#{MacOS.sdk_path_if_needed}"
-    end
-    on_linux do
+    else
       args << "--disable-dtrace"
-      args << "--without-ldap-sasl"
+      args << "--without-ldap-sasl" if build.with? "ldap"
+      args << "--without-ndbm"
       args << "--without-gdbm"
     end
 
@@ -215,11 +208,12 @@ class PhpFpm < Formula
 
     # Allow pecl to install outside of Cellar
     extension_dir = Utils.safe_popen_read("#{bin}/php-config", "--extension-dir").chomp
-    php_api_ver = File.basename(extension_dir)
-    inreplace bin/"php-config", lib/"php", HOMEBREW_PREFIX/"lib/php/pecl"
-    inreplace "php.ini-development", %r{; ?extension_dir = "\./"},
-      "extension_dir = \"#{HOMEBREW_PREFIX}/lib/php/pecl/#{php_api_ver}\""
-    inreplace share/"php/pear/PEAR/Builder.php", "--prefix", "--extension-dir"
+    orig_ext_dir = File.basename(extension_dir)
+    inreplace bin/"php-config", lib/"php", prefix/"pecl"
+    %w[development production].each do |mode|
+      inreplace "php.ini-#{mode}", %r{; ?extension_dir = "\./"},
+        "extension_dir = \"#{HOMEBREW_PREFIX}/lib/php/pecl/#{orig_ext_dir}\""
+    end
 
     # Use separate ini
     inreplace share/"php/pear/PEAR/Command/Install.php" do |s|
@@ -243,13 +237,16 @@ class PhpFpm < Formula
 
     # Use OpenSSL cert bundle
     openssl = Formula["openssl@1.1"]
-    inreplace "php.ini-development", /; ?openssl\.cafile=/,
-      "openssl.cafile = \"#{openssl.pkgetc}/cert.pem\""
-    inreplace "php.ini-development", /; ?openssl\.capath=/,
-      "openssl.capath = \"#{openssl.pkgetc}/certs\""
+    %w[development production].each do |mode|
+      inreplace "php.ini-#{mode}", /; ?openssl\.cafile=/,
+        "openssl.cafile = \"#{openssl.pkgetc}/cert.pem\""
+      inreplace "php.ini-#{mode}", /; ?openssl\.capath=/,
+        "openssl.capath = \"#{openssl.pkgetc}/certs\""
+    end
 
     config_files = {
       "php.ini-development"   => "php.ini",
+      "php.ini-production"    => "php.ini-production",
       "sapi/fpm/php-fpm.conf" => "php-fpm.conf",
       "sapi/fpm/www.conf"     => "php-fpm.d/www.conf",
     }
@@ -286,9 +283,22 @@ class PhpFpm < Formula
 
     # Custom location for extensions installed via pecl
     pecl_path = HOMEBREW_PREFIX/"lib/php/pecl"
+    ln_s pecl_path, prefix/"pecl" unless (prefix/"pecl").exist?
     extension_dir = Utils.safe_popen_read("#{bin}/php-config", "--extension-dir").chomp
-    php_api_ver = File.basename(extension_dir)
-    php_ext_dir = opt_prefix/"lib/php"/php_api_ver
+    php_basename = File.basename(extension_dir)
+    php_ext_dir = opt_prefix/"lib/php"/php_basename
+
+    # enable extensions required by pear
+    mkdir etc/"php/#{version.major_minor}/conf.d"
+    %w[xml].each do |e|
+      ext_config_path = etc/"php/#{version.major_minor}/conf.d/ext-#{e}.ini"
+      if (php_ext_dir/"#{e}.so").exist?
+        ext_config_path.write <<~EOS
+          [#{e}]
+          extension="#{php_ext_dir}/#{e}.so"
+        EOS
+      end
+    end
 
     # fix pear config to install outside cellar
     pear_path = HOMEBREW_PREFIX/"share/pear"
@@ -297,7 +307,7 @@ class PhpFpm < Formula
       "php_ini"  => etc/"php/#{version.major_minor}/php.ini",
       "php_dir"  => pear_path,
       "doc_dir"  => pear_path/"doc",
-      "ext_dir"  => pecl_path/php_api_ver,
+      "ext_dir"  => pecl_path/php_basename,
       "bin_dir"  => opt_bin,
       "data_dir" => pear_path/"data",
       "cfg_dir"  => pear_path/"cfg",
@@ -363,31 +373,12 @@ class PhpFpm < Formula
   end
 
   plist_options manual: "php-fpm"
-
-  def plist
-    <<~EOS
-      <?xml version="1.0" encoding="UTF-8"?>
-      <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-      <plist version="1.0">
-        <dict>
-          <key>KeepAlive</key>
-          <true/>
-          <key>Label</key>
-          <string>#{plist_name}</string>
-          <key>ProgramArguments</key>
-          <array>
-            <string>#{opt_sbin}/php-fpm</string>
-            <string>--nodaemonize</string>
-          </array>
-          <key>RunAtLoad</key>
-          <true/>
-          <key>WorkingDirectory</key>
-          <string>#{var}</string>
-          <key>StandardErrorPath</key>
-          <string>#{var}/log/php-fpm.log</string>
-        </dict>
-      </plist>
-    EOS
+  service do
+    run [opt_sbin/"php-fpm", "--nodaemonize"]
+    run_type :immediate
+    keep_alive true
+    error_log_path var/"log/php-fpm.log"
+    working_dir var
   end
 end
 
