@@ -2,9 +2,9 @@ class PhpFpm < Formula
   desc "General-purpose scripting language"
   homepage "https://www.php.net/"
   # Should only be updated if the new version is announced on the homepage, https://www.php.net/
-  url "https://www.php.net/distributions/php-8.1.5.tar.xz"
-  mirror "https://fossies.org/linux/www/php-8.1.5.tar.xz"
-  sha256 "7647734b4dcecd56b7e4bd0bc55e54322fa3518299abcdc68eb557a7464a2e8a"
+  url "https://www.php.net/distributions/php-8.2.1.tar.xz"
+  mirror "https://fossies.org/linux/www/php-8.2.1.tar.xz"
+  sha256 "650d3bd7a056cabf07f6a0f6f1dd8ba45cd369574bbeaa36de7d1ece212c17af"
   license "PHP-3.01"
 
   option "with-ffi", "use ffi"
