@@ -367,7 +367,7 @@ class PhpFpm < Formula
       Finally, check DirectoryIndex includes index.php
           DirectoryIndex index.php index.html
 
-      The php.ini and php-fpm.ini file can be found in:
+      The php.ini and php-fpm.conf file can be found in:
           #{etc}/php/#{version.major_minor}/
     EOS
   end
