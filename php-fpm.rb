@@ -2,9 +2,9 @@ class PhpFpm < Formula
   desc "General-purpose scripting language"
   homepage "https://www.php.net/"
   # Should only be updated if the new version is announced on the homepage, https://www.php.net/
-  url "https://www.php.net/distributions/php-8.2.1.tar.xz"
-  mirror "https://fossies.org/linux/www/php-8.2.1.tar.xz"
-  sha256 "650d3bd7a056cabf07f6a0f6f1dd8ba45cd369574bbeaa36de7d1ece212c17af"
+  url "https://www.php.net/distributions/php-8.2.12.tar.xz"
+  mirror "https://fossies.org/linux/www/php-8.2.12.tar.xz"
+  sha256 "e1526e400bce9f9f9f774603cfac6b72b5e8f89fa66971ebc3cc4e5964083132"
   license "PHP-3.01"
 
   option "with-ffi", "use ffi"
@@ -26,7 +26,7 @@ class PhpFpm < Formula
   end
 
   head do
-    url "https://github.com/php/php-src.git"
+    url "https://github.com/php/php-src.git", branch: "master"
 
     depends_on "bison" => :build # bison >= 3.0.0 required to generate parsers
     depends_on "re2c" => :build # required to generate PHP lexers
@@ -47,7 +47,7 @@ class PhpFpm < Formula
   depends_on "libzip" if build.with? "zip"
   depends_on "oniguruma" if build.with? "mbstring"
   depends_on "openldap" if build.with? "ldap"
-  depends_on "openssl@1.1"
+  depends_on "openssl@3"
   depends_on "pcre2"
   depends_on "sqlite"
   depends_on "tidy-html5" if build.with? "tidy"
@@ -65,7 +65,7 @@ class PhpFpm < Formula
 
   on_macos do
     # PHP build system incorrectly links system libraries
-    # see https://github.com/php/php-src/pull/3472
+    # see https://github.com/php/php-src/issues/10680
     patch :DATA
   end
 
@@ -91,7 +91,7 @@ class PhpFpm < Formula
     # system pkg-config missing
     ENV["KERBEROS_CFLAGS"] = " "
     if OS.mac?
-      ENV["LIBS"] = "-lintl"
+      ENV["LIBS"] = "-lintl" if build.with? "intl"
       ENV["SASL_CFLAGS"] = "-I#{MacOS.sdk_path_if_needed}/usr/include/sasl"
       ENV["SASL_LIBS"] = "-lsasl2"
     else
@@ -103,6 +103,10 @@ class PhpFpm < Formula
     # Each extension that is built on Mojave needs a direct reference to the
     # sdk path or it won't find the headers
     headers_path = "#{MacOS.sdk_path_if_needed}/usr" if OS.mac?
+
+    # `_www` only exists on macOS.
+    fpm_user = OS.mac? ? "_www" : "www-data"
+    fpm_group = OS.mac? ? "_www" : "www-data"
 
     args = %W[
       --prefix=#{prefix}
@@ -139,8 +143,8 @@ class PhpFpm < Formula
       --with-bz2=shared,#{headers_path}
       --with-curl=shared
       --with-external-pcre
-      --with-fpm-user=_www
-      --with-fpm-group=_www
+      --with-fpm-user=#{fpm_user}
+      --with-fpm-group=#{fpm_group}
       --with-gettext=shared,#{Formula["gettext"].opt_prefix}
       --with-iconv=shared,#{headers_path}
       --with-kerberos
@@ -236,7 +240,7 @@ class PhpFpm < Formula
     end
 
     # Use OpenSSL cert bundle
-    openssl = Formula["openssl@1.1"]
+    openssl = Formula["openssl@3"]
     %w[development production].each do |mode|
       inreplace "php.ini-#{mode}", /; ?openssl\.cafile=/,
         "openssl.cafile = \"#{openssl.pkgetc}/cert.pem\""
