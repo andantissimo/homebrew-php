@@ -1,10 +1,10 @@
-class PhpFpm < Formula
+class PhpFpmAT83 < Formula
   desc "General-purpose scripting language"
   homepage "https://www.php.net/"
   # Should only be updated if the new version is announced on the homepage, https://www.php.net/
-  url "https://www.php.net/distributions/php-8.2.15.tar.xz"
-  mirror "https://fossies.org/linux/www/php-8.2.15.tar.xz"
-  sha256 "eca5deac02d77d806838275f8a3024b38b35ac0a5d9853dcc71c6cbe3f1f8765"
+  url "https://www.php.net/distributions/php-8.3.14.tar.xz"
+  mirror "https://fossies.org/linux/www/php-8.3.14.tar.xz"
+  sha256 "58b4cb9019bf70c0cbcdb814c7df79b9065059d14cf7dbf48d971f8e56ae9be7"
   license "PHP-3.01"
 
   option "with-ffi", "use ffi"
@@ -22,17 +22,16 @@ class PhpFpm < Formula
 
   livecheck do
     url "https://www.php.net/downloads"
-    regex(/href=.*?php[._-]v?(\d+(?:\.\d+)+)\.t/i)
+    regex(/href=.*?php[._-]v?(#{Regexp.escape(version.major_minor)}(?:\.\d+)*)\.t/i)
   end
 
-  head do
-    url "https://github.com/php/php-src.git", branch: "master"
+  conflicts_with "php"
 
-    depends_on "bison" => :build # bison >= 3.0.0 required to generate parsers
-    depends_on "re2c" => :build # required to generate PHP lexers
-  end
+  # Security Support Until 31 Dec 2027
+  # https://www.php.net/supported-versions.php
+  deprecate! date: "2027-12-31", because: :unsupported
 
-  depends_on "pkg-config" => :build
+  depends_on "pkgconf" => :build
   depends_on "argon2"
   depends_on "aspell" if build.with? "pspell"
   depends_on "autoconf"
@@ -40,7 +39,7 @@ class PhpFpm < Formula
   depends_on "andantissimo/php/gd" if build.with? "gd"
   depends_on "gettext"
   depends_on "gmp" if build.with? "gmp"
-  depends_on "icu4c" if build.with? "intl"
+  depends_on "icu4c@76" if build.with? "intl"
   depends_on "krb5"
   depends_on "libpq" if build.with? "pgsql"
   depends_on "libsodium" if build.with? "sodium"
@@ -60,8 +59,6 @@ class PhpFpm < Formula
   uses_from_macos "libxml2"
   uses_from_macos "libxslt"
   uses_from_macos "zlib"
-
-  conflicts_with "php"
 
   on_macos do
     # PHP build system incorrectly links system libraries
@@ -167,7 +164,7 @@ class PhpFpm < Formula
 
     args << "--with-ffi=shared" if build.with? "ffi"
     args << "--enable-gd=shared" if build.with? "gd"
-    args << "--enable-intl=shared" if build.with? "intl"
+    args << "--enable-intl=shared,#{Formula["icu4c@76"].opt_prefix}" if build.with? "intl"
     args << "--enable-mbstring=shared" if build.with? "mbstring"
     args << "--with-external-gd" if build.with? "gd"
     args << "--with-gmp=shared,#{Formula["gmp"].opt_prefix}" if build.with? "gmp"
@@ -211,7 +208,7 @@ class PhpFpm < Formula
     end
 
     # Allow pecl to install outside of Cellar
-    extension_dir = Utils.safe_popen_read("#{bin}/php-config", "--extension-dir").chomp
+    extension_dir = Utils.safe_popen_read(bin/"php-config", "--extension-dir").chomp
     orig_ext_dir = File.basename(extension_dir)
     inreplace bin/"php-config", lib/"php", prefix/"pecl"
     %w[development production].each do |mode|
@@ -267,7 +264,7 @@ class PhpFpm < Formula
   end
 
   def post_install
-    pear_prefix = opt_share/"php/pear"
+    pear_prefix = share/"php/pear"
     pear_files = %W[
       #{pear_prefix}/.depdblock
       #{pear_prefix}/.filemap
@@ -287,8 +284,9 @@ class PhpFpm < Formula
 
     # Custom location for extensions installed via pecl
     pecl_path = HOMEBREW_PREFIX/"lib/php/pecl"
+    pecl_path.mkpath
     ln_s pecl_path, prefix/"pecl" unless (prefix/"pecl").exist?
-    extension_dir = Utils.safe_popen_read("#{bin}/php-config", "--extension-dir").chomp
+    extension_dir = Utils.safe_popen_read(bin/"php-config", "--extension-dir").chomp
     php_basename = File.basename(extension_dir)
     php_ext_dir = opt_prefix/"lib/php"/php_basename
 
@@ -306,7 +304,7 @@ class PhpFpm < Formula
 
     # fix pear config to install outside cellar
     pear_path = HOMEBREW_PREFIX/"share/pear"
-    cp_r opt_share/"php/pear/.", pear_path
+    cp_r share/"php/pear/.", pear_path
     {
       "php_ini"  => etc/"php/#{version.major_minor}/php.ini",
       "php_dir"  => pear_path,
