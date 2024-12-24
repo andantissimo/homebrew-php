@@ -20,10 +20,10 @@ class Gd < Formula
 
   depends_on "fontconfig"
   depends_on "freetype"
-  depends_on "jpeg-turbo"
   depends_on "libavif" if build.with? "avif"
   depends_on "libpng"
   depends_on "libtiff" if build.with? "tiff"
+  depends_on "mozjpeg"
   depends_on "webp" if build.with? "webp"
 
   # revert breaking changes in 2.3.3, remove in next release
@@ -37,7 +37,7 @@ class Gd < Formula
       --disable-dependency-tracking
       --prefix=#{prefix}
       --with-freetype=#{Formula["freetype"].opt_prefix}
-      --with-jpeg=#{Formula["jpeg-turbo"].opt_prefix}
+      --with-jpeg=#{Formula["mozjpeg"].opt_prefix}
       --with-png=#{Formula["libpng"].opt_prefix}
       --without-x
       --without-xpm
